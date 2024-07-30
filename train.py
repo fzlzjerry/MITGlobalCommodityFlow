@@ -10,7 +10,7 @@ import keras_tuner as kt
 import os
 
 # 加载数据
-file_path = '/mnt/data/Port level Imports.csv'
+file_path = 'Port level Imports.csv'
 data = pd.read_csv(file_path)
 
 # 将时间列转换为日期时间格式
