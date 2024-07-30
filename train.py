@@ -9,6 +9,9 @@ from tensorflow.keras.regularizers import l1_l2
 import keras_tuner as kt
 import os
 
+# 设置序列长度
+seq_length = 12  # 示例序列长度
+
 # 加载数据
 file_path = 'Port level Imports.csv'
 data = pd.read_csv(file_path)
@@ -34,6 +37,8 @@ def create_sequences(data, seq_length):
         y = data[i + seq_length]
         xs.append(x)
         ys.append(y)
+    if not xs or not ys:
+        raise ValueError("No sequences were created. Check the length of the data and seq_length.")
     return np.array(xs), np.array(ys)
 
 
@@ -80,14 +85,13 @@ def build_model(hp):
 tuner = kt.Hyperband(
     build_model,
     objective='val_loss',
-    max_epochs=50,
-    factor=3,
+    max_epochs=100,  # 增加最大epoch数
+    factor=2,  # 调整factor以增加初始和后续试验的epoch数
     directory='my_dir',
     project_name='commodity_forecasting'
 )
 
 # 参数
-seq_length = 12  # 示例序列长度
 batch_size = 256
 
 # 获取唯一的港口和商品
@@ -114,7 +118,9 @@ for port in ports:
         # 筛选选定港口和商品的数据
         subset = data[(data['Port'] == port) & (data['Commodity'] == commodity)]
 
+        # 检查样本数量是否足够
         if len(subset) < seq_length:
+            print(f"Skipping {port} - {commodity} due to insufficient data")
             continue  # 如果数据点不够，则跳过
 
         # 规范化数据
@@ -122,20 +128,32 @@ for port in ports:
         subset_scaled = scaler.fit_transform(subset[['Containerized Vessel SWT (Gen) (kg)']])
 
         # 创建序列
-        X, y = create_sequences(subset_scaled, seq_length)
+        try:
+            X, y = create_sequences(subset_scaled, seq_length)
+        except ValueError as ve:
+            print(f"Error creating sequences for {port} - {commodity}: {ve}")
+            continue
 
         # 将数据分为训练和测试集
         split = int(0.8 * len(X))
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
 
-        with strategy.scope():
-            # 进行超参数搜索
-            tuner.search(X_train, y_train, epochs=50, validation_split=0.2, callbacks=callbacks, batch_size=batch_size)
+        print(f"Training model for {port} - {commodity}")
 
-            # 获取最佳模型
-            best_model = tuner.get_best_models(num_models=1)[0]
+        try:
+            with strategy.scope():
+                # 进行超参数搜索
+                tuner.search(X_train, y_train, epochs=100, validation_split=0.2, callbacks=callbacks,
+                             batch_size=batch_size)
 
-            # 保存模型和归一化参数
-            best_model.save(f'models/{port}_{commodity}.keras')
-            np.save(f'models/{port}_{commodity}_scaler.npy', scaler.scale_)
+                # 获取最佳模型
+                best_model = tuner.get_best_models(num_models=1)[0]
+
+                # 保存模型和归一化参数
+                best_model.save(f'models/{port}_{commodity}.keras')
+                np.save(f'models/{port}_{commodity}_scaler.npy', scaler.scale_)
+                print(f"Model for {port} - {commodity} saved successfully")
+
+        except Exception as e:
+            print(f"Error training model for {port} - {commodity}: {e}")
