@@ -67,6 +67,7 @@ class MyHyperModel(kt.HyperModel):
 
             x = Conv1D(filters=hp.Int(f'filters_conv_{i}', min_value=32, max_value=256, step=32),
                        kernel_size=kernel_size,
+                       padding='same',  # 使用'same'填充
                        activation='relu')(x)
             x = BatchNormalization()(x)
             x = Dropout(rate=hp.Float(f'dropout_conv_{i}', min_value=0.2, max_value=0.5, step=0.1))(x)
