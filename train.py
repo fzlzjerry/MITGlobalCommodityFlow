@@ -118,7 +118,7 @@ tf.keras.mixed_precision.set_global_policy('mixed_float16')
 tuner = kt.Hyperband(
     MyHyperModel(),
     objective='val_loss',
-    max_epochs=200,
+    max_epochs=30,
     factor=3,
     directory='my_dir',
     project_name='commodity_forecasting'
